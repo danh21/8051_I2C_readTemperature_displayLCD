@@ -1,18 +1,22 @@
 #include <reg51.h>
+#include <absacc.h>	   	// defines XBYTE
 #include "intrins.h"	// defines nop
 
 
-  
+
+#define REG0 XBYTE[0x8000]	// external data memory at address 8000h   
+#define REG1 XBYTE[0x8001]   
+#define REG2 XBYTE[0x8002]   
+
 #define uchar unsigned char    
 
 uchar result[16] = {" T = "};  
+ 
+uchar bdata busyFlag;  			// bit-addressable
+sbit busyFlag_7 = busyFlag^7; 	// bit 7 of busy flag
 
-sbit SCL = P3^3;		// serial clock    
-sbit SDA = P3^4;   		// serial data
-
-#define LCD P2
-sbit RS = P1^2;			// register select
-sbit E 	= P1^3; 		// enable
+sbit SCL = P3^3;				// serial clock    
+sbit SDA = P3^4;    			// serial data
 
 
 
@@ -88,8 +92,8 @@ void Send(uchar Data)
 uchar Read(void) 
 {
 	uchar Data = 0, i;
-    SDA = 1;
 
+    SDA = 1;
     for (i = 0; i < 8; i++) { 		// 8 bit
     	SCL = 0;
       	_nop_();
@@ -113,7 +117,7 @@ uchar Read(void)
 void initSensor()
 {
     Start();
-    Send(0x90);		// 1001 - for read and write operations ; 000 - address (proteus) ; 0 - write
+    Send(0x98);		// 1001 - for read and write operations ; 100 - address (proteus) ; 0 - write
     ACK();
     Send(0xEE);		// begins a temperature conversion
     NACK();
@@ -127,14 +131,14 @@ void readTemp()
     uchar Data;
 
     Start(); 
-    Send(0x90);
+    Send(0x98);
     ACK();
     Send(0xAA);		// reads the last temperature conversion result
     NACK();
 	Stop();
 
     Start();
-    Send(0x91);		// 1001 - for read and write operations ; 000 - address (proteus) ; 1 - write
+    Send(0x99);		// 1001 - for read and write operations ; 100 - address (proteus) ; 1 - write
     ACK();
     Data = Read();
     NACK();
@@ -158,22 +162,24 @@ void readTemp()
 
 
 /////////////////////////////////// START of LCD ///////////////////////////////////
-void msdelay(unsigned int time)	
-{										   
-    unsigned int i, j;
-    for (i = 0; i < time; i++)    
-    	for (j = 0; j < 1275; j++);
-} 
+void busy()        			// check status of LCD
+{
+	// busyFlag_7 = 1 ---> the system is now internally executing a previously received instruction
+    // to read busy flag ---> RS = 0, R/W = 1
+	// REG1 has address 01H
+	do {
+        busyFlag = REG1;
+    } while (busyFlag_7);  	
+}
 
 
 
 void writeCMD(uchar cmd)   
 {
-    RS = 0;
-	LCD = cmd;
-	E = 1;
-	E = 0;
-	msdelay(1);
+	// to send CMD ---> RS = 0, R/W = 0
+	// REG0 has address 00H
+    busy();
+    REG0 = cmd;
 }
 
 
@@ -188,34 +194,34 @@ void initLCD()
 
 
 
-void writeData(uchar Data)  
+void writeChar(uchar ch)    //write data
 {
-    RS = 1;
-	LCD = Data;
-	E = 1;
-	E = 0;
-	msdelay(1);
+	// to send data ---> RS = 1, R/W = 0
+	// REG2 has address 10H
+    busy();
+    REG2 = ch;
 }
 
 
 
-void writeStr(uchar *str) 
+void writeStr(uchar str[]) 
 {
-    while (*str != '\0')							
-		writeData(*str++); 
+    uchar i;
+    for(i=0; i<16; i++)
+        writeChar(str[i]);
 }
 /////////////////////////////////// END of LCD ///////////////////////////////////
-
+ 
 
 
 void main()
 {
     initLCD();
 	initSensor();
-	
+	    
     while(1) {       
         readTemp();
-        writeCMD(0x80);	// Force cursor to beginning of first line
+        writeCMD(0x80);		// Force cursor to beginning of first line
         writeStr(result);  
     }
 }
