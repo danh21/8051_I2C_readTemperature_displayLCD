@@ -8,15 +8,25 @@
 #define REG1 XBYTE[0x8001]   
 #define REG2 XBYTE[0x8002]   
 
+#define uint unsigned int
 #define uchar unsigned char    
 
 uchar result[16] = {" T = "};  
  
-uchar bdata busyFlag;  			// bit-addressable
+uchar bdata busyFlag;  			// bdata - bit-addressable
 sbit busyFlag_7 = busyFlag^7; 	// bit 7 of busy flag
 
 sbit SCL = P3^3;				// serial clock    
 sbit SDA = P3^4;    			// serial data
+
+
+
+void delay_ms(uint ms)								// delay in ms					
+{
+	uint i, j;
+	for (i = 0; i < ms; i++)
+		for (j = 0; j < 123; j++); 					
+}
 
 
 
@@ -113,7 +123,7 @@ uchar Read(void)
 
 
 
-/////////////////////////////////// Start of DS1621 ///////////////////////////////////////
+//////////////////////////////////// START of DS1621 ////////////////////////////////////////
 void initSensor()
 {
     Start();
@@ -157,11 +167,11 @@ void readTemp()
 	result[9] = 223; 						// degree
 	result[10] = 'C';
 }
-/////////////////////////////////// END of DS1621 ///////////////////////////////////
+//////////////////////////////////// END of DS1621 ////////////////////////////////////////
 
 
 
-/////////////////////////////////// START of LCD ///////////////////////////////////
+//////////////////////////////////// START of LCD ////////////////////////////////////////
 void busy()        			// check status of LCD
 {
 	// busyFlag_7 = 1 ---> the system is now internally executing a previously received instruction
@@ -210,14 +220,15 @@ void writeStr(uchar str[])
     for(i=0; i<16; i++)
         writeChar(str[i]);
 }
-/////////////////////////////////// END of LCD ///////////////////////////////////
- 
+//////////////////////////////////// END of LCD ///////////////////////////////////////
+
 
 
 void main()
 {
-    initLCD();
+	initLCD();
 	initSensor();
+	delay_ms(1000);
 	    
     while(1) {       
         readTemp();
